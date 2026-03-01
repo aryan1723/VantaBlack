@@ -6,7 +6,6 @@ import java.util.HashSet;
 import java.util.Set;
 
 public class OpticEngine {
-    // USE THIS FOR FORGING ONLY (Checks complexity)
     public byte[] generateHashWithCheck(String filePath) throws Exception {
         BufferedImage image = ImageIO.read(new File(filePath));
         if (image == null) throw new Exception("Invalid Image");
