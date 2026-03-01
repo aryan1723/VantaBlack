@@ -1,0 +1,8 @@
+<component name="ArtifactManager">
+  <artifact type="jar" name="VantaBlack_Production:jar">
+    <output-path>$PROJECT_DIR$/out/artifacts/VantaBlack_Production_jar</output-path>
+    <root id="archive" name="VantaBlack_Production.jar">
+      <element id="module-output" name="VantaBlack_Production" />
+    </root>
+  </artifact>
+</component>
