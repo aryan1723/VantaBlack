@@ -1,5 +1,9 @@
 import javax.swing.*;
+import java.awt.*;
+import java.io.ByteArrayOutputStream;
 import java.io.File;
+import java.net.InetAddress;
+import java.net.NetworkInterface;
 import java.util.Arrays;
 
 public class VantaBlack {
@@ -22,6 +26,7 @@ public class VantaBlack {
 
         try {
             while (true) {
+                // Assuming ExternalDriveDetection is defined elsewhere
                 ExternalDriveDetection detector = new ExternalDriveDetection();
                 String usb = detector.detectUSB();
                 String status = usb.isEmpty() ? "USB DISCONNECTED" : "TOKEN DETECTED: " + usb;
@@ -83,11 +88,9 @@ public class VantaBlack {
             VaultProcessor vp = new VaultProcessor();
             for (File f : encFiles) {
                 if (f.getName().endsWith(".vanta")) {
-                    // Restore back to the VantaVault (removing .vanta extension)
                     File restoredFile = new File(vault, f.getName().replace(".vanta", ""));
                     vp.decrypt(f, restoredFile, key);
 
-                    // AUTOMATICALLY REMOVE ENCRYPTED FILE AFTER SUCCESSFUL DECRYPTION
                     if (restoredFile.exists()) {
                         f.delete();
                     }
@@ -100,23 +103,79 @@ public class VantaBlack {
         Arrays.fill(key, (byte)0);
     }
 
+    // --- UPDATED FORGE METHOD ---
     private static void handleForge(String usb) throws Exception {
         String path = getPath("Select Image for Master Key", JFileChooser.FILES_ONLY);
         if (path == null) return;
 
+        // 1. Capture Hardware Entropy (Silent)
+        byte[] hardwareData = captureHardwareEntropy();
+
+        // 2. Capture Mouse Entropy (Interactive UI)
+        byte[] mouseData = captureMouseEntropy();
+
+        // 3. Blend all three in the updated OpticEngine
         OpticEngine engine = new OpticEngine();
-        byte[] masterKey = engine.generateHashWithCheck(path);
+        byte[] masterKey = engine.generateHashWithCheck(path, mouseData, hardwareData);
 
         if (usb.isEmpty()) {
             usb = getPath("Select USB Root manually", JFileChooser.DIRECTORIES_ONLY);
         }
 
         if (usb != null) {
+            // Assuming ForgeKey is defined elsewhere
             new ForgeKey().forge(usb, masterKey);
-            showMsg("Physical Key successfully forged.");
+            showMsg("Physical Key successfully forged using Tri-Factor Entropy.");
         }
-        Arrays.fill(masterKey, (byte)0);
+        Arrays.fill(masterKey, (byte)0); // RAM Hardening
     }
+
+    // --- NEW ENTROPY HARVESTING METHODS ---
+
+    private static byte[] captureHardwareEntropy() {
+        try {
+            InetAddress localHost = InetAddress.getLocalHost();
+            NetworkInterface ni = NetworkInterface.getByInetAddress(localHost);
+            if (ni != null) {
+                byte[] mac = ni.getHardwareAddress();
+                if (mac != null) return mac;
+            }
+        } catch (Exception e) {
+            System.out.println("Could not fetch MAC, falling back to OS properties.");
+        }
+        // Fallback if network interface is unavailable
+        return System.getProperty("os.name").getBytes();
+    }
+
+    private static byte[] captureMouseEntropy() {
+        ByteArrayOutputStream buffer = new ByteArrayOutputStream();
+
+        // Create a modal dialog to block execution and force user interaction
+        JDialog dialog = new JDialog((Frame)null, "Entropy Harvester", true);
+        dialog.setSize(500, 300);
+        dialog.setLocationRelativeTo(null);
+        dialog.setLayout(new BorderLayout());
+
+        JLabel instruction = new JLabel("Move your mouse randomly inside this box to generate kinetic salt!", SwingConstants.CENTER);
+        instruction.setFont(new Font("Consolas", Font.BOLD, 14));
+        dialog.add(instruction, BorderLayout.CENTER);
+
+        // Record coordinates as bytes
+        dialog.addMouseMotionListener(new java.awt.event.MouseMotionAdapter() {
+            public void mouseMoved(java.awt.event.MouseEvent evt) {
+                buffer.write(evt.getX());
+                buffer.write(evt.getY());
+            }
+        });
+
+        // Auto-close the window after 3 seconds
+        new Timer(3000, e -> dialog.dispose()).start();
+        dialog.setVisible(true); // This blocks until the timer calls dispose()
+
+        return buffer.toByteArray();
+    }
+
+    // --- UTILITY METHODS ---
 
     private static String getPath(String title, int mode) {
         JFileChooser jfc = new JFileChooser();
